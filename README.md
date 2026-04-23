@@ -66,7 +66,6 @@ Sekcja poświęcona "bebechom" modelu Machine Learning. Wyjaśnienie wag poszcze
 1. Sklonuj repozytorium:
    ```bash
    git clone [https://github.com/TwojLogin/Praca_mgr_2026.git](https://github.com/TwojLogin/Praca_mgr_2026.git)
-   ```bash
 
    2. Zainstaluj wymagane biblioteki:
    ```bash
