@@ -17,31 +17,30 @@ Aplikacja webowa stworzona w ramach pracy magisterskiej, służąca do zaawansow
 ## 🏗️ Szczegółowa Struktura i Zakładki
 
 ### 1. 🏠 Dashboard - Statystyki Ogólne
-Pierwsza sekcja aplikacji służy do szybkiego przeglądu kondycji ligi i wybranych sezonów. Wyświetla tabele ligowe, rankingi strzelców oraz kluczowe metryki efektywności zespołów.
+Główny panel analityczny służący do agregacji i wizualizacji danych na poziomie całych lig, sezonów lub konkretnych drużyn. 
 
 <img width="1866" height="1197" alt="Dashboard View" src="https://github.com/user-attachments/assets/789c2a86-d8c6-48f6-9b04-44f1127a1019" />
 
-**Narzędzia w tej zakładce:**
-- **Selektor Sezonów:** Pozwala na filtrowanie danych historycznych.
-- **Tabela Ligowa:** Generowana dynamicznie na podstawie przetworzonych zdarzeń meczowych.
-- **KPI Cards:** Najważniejsze statystyki zbiorcze wyświetlane w formie czytelnych kart.
+**Kluczowe elementy zakładki:**
+- **🎛️ Panel Filtrów:** Kaskadowy system wyboru (Liga -> Sezon -> Klub), który dynamicznie aktualizuje wszystkie wykresy poniżej.
+- **Rozkład zdarzeń (Wykres Kołowy):** Wizualizuje proporcje poszczególnych typów zdarzeń meczowych (faule, strzały, kartki, rożne) dla wybranego filtru.
+- **Kiedy padają bramki? (Histogram):** Analiza rozkładu czasowego strzelanych goli, pogrupowana w czytelne, 10-minutowe okna czasowe (binning).
+- **Statystyki dyscyplinarne:** Dodatkowy wykres słupkowy (aktywny po wybraniu konkretnego klubu), analizujący dystrybucję otrzymanych kartek.
 
 ---
 
 ### 2. ⚽ Analiza Meczów i Event Map
-To serce aplikacji, pozwalające na dogłębną analizę pojedynczego spotkania. Umożliwia wizualizację każdego strzału w dwóch płaszczyznach: pozycji na boisku oraz punktu trafienia w bramkę.
+To serce aplikacji, pozwalające na dogłębną, mikroskopijną analizę pojedynczego spotkania. Umożliwia szczegółowy podgląd osi czasu oraz wizualizację każdego strzału.
 
 <img width="1864" height="3053" alt="Match Analysis" src="https://github.com/user-attachments/assets/8eacbbde-f5f4-4bc9-acc4-e220510ee42f" />
 
-**Kluczowe moduły:**
-- **Event Map (SVG):** Autorski system mapowania współrzędnych strzału na pionowy rzut boiska oraz czołowy rzut bramki.
-- **Live xG Calculator:** Dla każdego wybranego strzału model ML oblicza prawdopodobieństwo zdobycia bramki na podstawie:
-    - *Lokalizacji:* Dystansu i kąta względem bramki.
-    - *Body Part:* Czy strzał oddano nogą, czy głową.
-    - *Situation:* Kontekst akcji (np. z gry, rzut wolny, rzut karny).
-- **Match Momentum Chart:** Wykres słupkowy pokazujący skumulowane zagrożenie (threat) w 5-minutowych interwałach, ułatwiający identyfikację momentów dominacji.
-
----
+**Kluczowe elementy zakładki:**
+- **Relacja z meczu (Play-by-play):** Interaktywna, posortowana chronologicznie tabela zawierająca szczegółowe opisy wszystkich akcji (wzbogacona o funkcję dekodowania błędnych znaków tekstowych).
+- **Live xG Calculator:** Predykcja w czasie rzeczywistym. Na podstawie wczytanego z pliku `.joblib` modelu Random Forest, algorytm analizuje wektor cech (lokalizacja, typ asysty, część ciała, kontekst) i błyskawicznie zwraca szacowane prawdopodobieństwo zdobycia bramki (Expected Goals).
+- **Wizualizacja SVG (Event Map):** Autorski system mapowania strzału na dwa niezależne, niestandardowe wykresy Plotly z tłem SVG:
+    - *Lokalizacja na murawie:* Pionowy rzut boiska pokazujący miejsce oddania strzału.
+    - *Miejsce strzału:* Czołowy rzut bramki pokazujący punkt, w który poleciała (lub wpadła) piłka.
+- **Wskaźnik zagrożenia (Match Momentum):** Wykres słupkowy pokazujący skumulowaną presję (punkty przyznawane za gole, strzały i rzuty rożne) obu drużyn w 5-minutowych interwałach, z wyraźnie zaznaczoną przerwą między połowami.
 
 ### 3. 🏃 Analiza Zawodników
 Moduł skupiony na indywidualnych osiągnięciach graczy. Pozwala na porównywanie efektywności zawodników oraz analizę ich map strzałów (Shot Maps) w ujęciu całego sezonu.
