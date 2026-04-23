@@ -1,59 +1,66 @@
 # ⚽ Football Analytics Dashboard - Praca Magisterska
 ## Wersja: v0.4 (Stable - SVG & xG Implementation)
 
-Aplikacja webowa stworzona w ramach pracy magisterskiej, służąca do zaawansowanej analityki danych piłkarskich. Narzędzie łączy w sobie analizę statystyczną, wizualizację zdarzeń meczowych na autorskich grafikach SVG oraz predykcję prawdopodobieństwa goli za pomocą autorskiego modelu Machine Learning (Expected Goals - xG).
-
----
-
-### 📊 Widok Główny (Dashboard)
-<img width="1866" height="1197" alt="image" src="https://github.com/user-attachments/assets/789c2a86-d8c6-48f6-9b04-44f1127a1019" />
-
-### 🥅 Analiza Meczów i Event Map
-<img width="1864" height="3053" alt="image" src="https://github.com/user-attachments/assets/8eacbbde-f5f4-4bc9-acc4-e220510ee42f" />
-
-
+Aplikacja webowa stworzona w ramach pracy magisterskiej, służąca do zaawansowanej analityki danych piłkarskich. Narzędzie łączy w sobie analizę statystyczną, wizualizację zdarzeń meczowych na autorskich grafikach SVG oraz predykcję prawdopodobieństwa goli za pomocą autorskiego modelu Machine Learning.
 
 ---
 
 ## 🚀 Kluczowe Funkcjonalności (v0.4)
 
 - **Interaktywna Relacja Meczowa:** Chronologiczny podgląd wszystkich zdarzeń z automatycznym czyszczeniem błędów kodowania znaków (fix mojibake).
-- **Autorska Wizualizacja SVG:** Wykorzystanie własnoręcznie przygotowanych plików `.svg` do mapowania zdarzeń na murawie oraz precyzyjnego pozycjonowania strzałów w świetle bramki.
-- **Model Expected Goals (xG):** Implementacja modelu klasyfikacji binarnej (Random Forest), który w czasie rzeczywistym szacuje jakość oddanego strzału na podstawie lokalizacji, części ciała i kontekstu akcji.
-- **Match Momentum:** Dynamiczny wykres ciśnienia meczowego, pokazujący dominację drużyn w 5-minutowych interwałach.
+- **Autorska Wizualizacja SVG:** Wykorzystanie autorskich plików `.svg` do mapowania zdarzeń na murawie oraz precyzyjnego pozycjonowania strzałów w świetle bramki.
+- **Model Expected Goals (xG):** Implementacja modelu klasyfikacji binarnej (Random Forest), który w czasie rzeczywistym szacuje jakość oddanego strzału.
+- **Match Momentum:** Dynamiczny wykres "ciśnienia" meczowego, pokazujący dominację drużyn w czasie.
 
 ---
 
-## 🏗️ Struktura Aplikacji
+## 🏗️ Szczegółowa Struktura i Zakładki
 
-Aplikacja jest podzielona na dedykowane moduły analityczne:
+### 1. 🏠 Dashboard - Statystyki Ogólne
+Pierwsza sekcja aplikacji służy do szybkiego przeglądu kondycji ligi i wybranych sezonów. Wyświetla tabele ligowe, rankingi strzelców oraz kluczowe metryki efektywności zespołów.
 
-### 1. 🏠 Dashboard
-Ogólne podsumowanie rozgrywek. Statystyki ligowe, tabele i główne wskaźniki efektywności dla wybranego sezonu.
+<img width="1866" height="1197" alt="Dashboard View" src="https://github.com/user-attachments/assets/789c2a86-d8c6-48f6-9b04-44f1127a1019" />
 
-### 2. ⚽ Analiza Meczów
-Serce aplikacji. Pozwala na:
-- Wybór konkretnego spotkania.
-- Przegląd szczegółowej relacji tekstowej.
-- **Event Map:** Wybranie dowolnego strzału z listy wyświetla jego dokładną lokalizację na pionowym boisku oraz punkt trafienia w bramkę.
-- **Live xG:** Każdy strzał jest oceniany przez model ML pod kątem prawdopodobieństwa zdobycia bramki.
+**Narzędzia w tej zakładce:**
+- **Selektor Sezonów:** Pozwala na filtrowanie danych historycznych.
+- **Tabela Ligowa:** Generowana dynamicznie na podstawie przetworzonych zdarzeń meczowych.
+- **KPI Cards:** Najważniejsze statystyki zbiorcze wyświetlane w formie czytelnych kart.
+
+---
+
+### 2. ⚽ Analiza Meczów i Event Map
+To serce aplikacji, pozwalające na dogłębną analizę pojedynczego spotkania. Umożliwia wizualizację każdego strzału w dwóch płaszczyznach: pozycji na boisku oraz punktu trafienia w bramkę.
+
+<img width="1864" height="3053" alt="Match Analysis" src="https://github.com/user-attachments/assets/8eacbbde-f5f4-4bc9-acc4-e220510ee42f" />
+
+**Kluczowe moduły:**
+- **Event Map (SVG):** Autorski system mapowania współrzędnych strzału na pionowy rzut boiska oraz czołowy rzut bramki.
+- **Live xG Calculator:** Dla każdego wybranego strzału model ML oblicza prawdopodobieństwo zdobycia bramki na podstawie:
+    - *Lokalizacji:* Dystansu i kąta względem bramki.
+    - *Body Part:* Czy strzał oddano nogą, czy głową.
+    - *Situation:* Kontekst akcji (np. z gry, rzut wolny, rzut karny).
+- **Match Momentum Chart:** Wykres słupkowy pokazujący skumulowane zagrożenie (threat) w 5-minutowych interwałach, ułatwiający identyfikację momentów dominacji.
+
+---
 
 ### 3. 🏃 Analiza Zawodników
-Szczegółowy wgląd w formę poszczególnych graczy. Statystyki indywidualne, dystrybucja strzałów i kluczowych podań.
+Moduł skupiony na indywidualnych osiągnięciach graczy. Pozwala na porównywanie efektywności zawodników oraz analizę ich map strzałów (Shot Maps) w ujęciu całego sezonu.
 
-### 4. 🧠 ML Analysis
-Sekcja poświęcona "bebechom" modelu Machine Learning. Wyjaśnienie wag poszczególnych cech (Features) i metryki skuteczności modelu (Brier Score, ROC AUC).
+### 4. 🧠 ML Analysis - Detale Modelu
+Sekcja techniczna prezentująca jakość wytrenowanego modelu xG. Zawiera:
+- **Feature Importance:** Które parametry (np. lokalizacja, asysta) mają największy wpływ na szacowane xG.
+- **Metrics:** Wyniki Brier Score oraz ROC AUC potwierdzające skuteczność predykcyjną modelu.
 
 ---
 
 ## 🛠️ Stack Techniczny
 
 - **Język:** Python 3.x
-- **Frontend:** [Streamlit](https://streamlit.io/)
-- **Wizualizacje:** [Plotly](https://plotly.com/python/) & Custom SVG
-- **Machine Learning:** [Scikit-learn](https://scikit-learn.org/)
-- **Przetwarzanie danych:** Pandas, Numpy
-- **Wersjonowanie modeli:** Joblib
+- **Frontend:** [Streamlit](https://streamlit.io/) - szybka budowa interfejsów analitycznych.
+- **Wizualizacje:** [Plotly](https://plotly.com/python/) & Custom SVG - dynamiczne i skalowalne grafiki.
+- **Machine Learning:** [Scikit-learn](https://scikit-learn.org/) - model Random Forest do obliczeń xG.
+- **Przetwarzanie danych:** Pandas, Numpy - manipulacja ramkami danych.
+- **Wersjonowanie modeli:** Joblib - zapis i odczyt wytrenowanych wag modelu.
 
 ---
 
