@@ -1,0 +1,38 @@
+# ========================
+# 1. DANE I MODELE ML (Kluczowe)
+# ========================
+# Ignorujemy ciężkie bazy danych CSV
+data/*.csv
+# Ignorujemy duże pliki z wytrenowanymi modelami
+data/*.joblib
+
+# UWAGA: Celowo nie ignorujemy folderu data/img/ ani plików .svg!
+# Zostaną one wysłane na GitHuba, bo są częścią interfejsu.
+
+# ========================
+# 2. PYTHON I ŚRODOWISKO
+# ========================
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+.env
+
+# ========================
+# 3. JUPYTER NOTEBOOK
+# ========================
+.ipynb_checkpoints/
+
+# ========================
+# 4. STREAMLIT I VS CODE
+# ========================
+.vscode/
+.streamlit/secrets.toml
+
+# ========================
+# 5. SYSTEMOWE (Windows/Mac)
+# ========================
+.DS_Store
+Thumbs.db
