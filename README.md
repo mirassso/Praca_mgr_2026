@@ -67,8 +67,11 @@ Sekcja poświęcona "bebechom" modelu Machine Learning. Wyjaśnienie wag poszcze
    ```bash
    git clone [https://github.com/TwojLogin/Praca_mgr_2026.git](https://github.com/TwojLogin/Praca_mgr_2026.git)
    ```
+2. Zainstaluj wymagane biblioteki:
    ```bash
-   2. Zainstaluj wymagane biblioteki:
-   ```
    pip install -r requirements.txt
+   ```
+2. Uruchom aplikację:
    ```bash
+   streamlit run app.py
+   ```
