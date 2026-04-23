@@ -5,17 +5,13 @@ Aplikacja webowa stworzona w ramach pracy magisterskiej, służąca do zaawansow
 
 ---
 
-## 📸 Zrzuty Ekranu
-*(Wskazówka: Zrób screeny i umieść je w folderze docs/screenshots/, aby stały się widoczne poniżej)*
-
 ### 📊 Widok Główny (Dashboard)
-![Dashboard Screenshot](docs/screenshots/dashboard.png)
+<img width="1866" height="1197" alt="image" src="https://github.com/user-attachments/assets/789c2a86-d8c6-48f6-9b04-44f1127a1019" />
 
 ### 🥅 Analiza Meczów i Event Map
-![Match Analysis Screenshot](docs/screenshots/matches.png)
+<img width="1864" height="3053" alt="image" src="https://github.com/user-attachments/assets/8eacbbde-f5f4-4bc9-acc4-e220510ee42f" />
 
-### 📈 Model xG w Akcji
-![xG Model Screenshot](docs/screenshots/xg_preview.png)
+
 
 ---
 
