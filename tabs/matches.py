@@ -1,240 +1,255 @@
 import streamlit as st
-import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
+import data_loader as dl
+import numpy as np
 import base64
-import os
-import joblib # NOWY IMPORT DO MODELU
 
-# --- FUNKCJE POMOCNICZE ---
-
-def clean_text(text):
-    if not isinstance(text, str): return text
-    try: text = text.encode('cp1252').decode('utf-8')
-    except: pass
-    mojibake_dict = {
-        'A©': 'é', 'Ã©': 'é', 'A¨': 'è', 'Ã¨': 'è', 'A±': 'ñ', 'Ã±': 'ñ',
-        'A³': 'ó', 'Ã³': 'ó', 'A¡': 'á', 'Ã¡': 'á', 'A-': 'í', 'Ã­': 'í',
-        'A¼': 'ü', 'Ã¼': 'ü', 'A§': 'ç', 'Ã§': 'ç', 'Aº': 'ú', 'Ãº': 'ú',
-        'A´': 'ô', 'Ã´': 'ô', 'A¶': 'ö', 'Ã¶': 'ö', 'A¤': 'ä', 'Ã¤': 'ä'
-    }
-    for bad, good in mojibake_dict.items(): text = text.replace(bad, good)
-    return text
-
-def get_base64_image(image_path):
-    if not os.path.exists(image_path): return None
-    with open(image_path, "rb") as img_file:
-        encoded = base64.b64encode(img_file.read()).decode()
-        return f"data:image/svg+xml;base64,{encoded}"
-
-# --- FUNKCJA ŁADUJĄCA MODEL ML ---
-# Używamy @st.cache_resource, aby model załadował się tylko raz, a nie przy każdym kliknięciu
-@st.cache_resource
-def load_xg_model():
+def get_base64_image(file_path):
     try:
-        model = joblib.load('models/xg_model.joblib')
-        cols = joblib.load('models/xg_columns.joblib')
-        return model, cols
-    except Exception as e:
-        return None, None
+        with open(file_path, "rb") as img_file:
+            encoded_string = base64.b64encode(img_file.read()).decode()
+        return f"data:image/svg+xml;base64,{encoded_string}"
+    except FileNotFoundError:
+        return None
 
-# PITCH_MAP i GOAL_MAP (Skrócone dla czytelności kodu)
-PITCH_MAP = {1: (50, 75), 2: (50, 25), 3: (50, 88), 4: (10, 75), 5: (90, 75), 6: (15, 60), 7: (20, 92), 8: (80, 92), 9: (30, 88), 10: (38, 95), 11: (70, 88), 12: (62, 95), 13: (50, 96), 14: (50, 89), 15: (50, 78), 16: (50, 65), 17: (50, 55), 18: (50, 45), 19: (50, 50)}
-GOAL_MAP = {1: (50, 110), 2: (50, 50), 3: (15, 15), 4: (85, 15), 5: (50, 50), 6: (20, 120), 7: (50, 85), 8: (0, 50), 9: (100, 50), 10: (50, 130), 11: (50, 80), 12: (15, 80), 13: (85, 80)}
-
-
-def render(events, ginf):
-    st.title("⚽ Analiza meczów")
-
-    # Ładujemy model i kolumny na starcie
-    xg_model, xg_cols = load_xg_model()
-
-    match_list = ginf.apply(lambda x: f"{x['ht']} vs {x['at']} ({x['season']})", axis=1)
-    selected_match = st.selectbox("Wybierz mecz:", match_list)
-
-    match_info = ginf[match_list == selected_match].iloc[0]
-    match_id = match_info['id_odsp']
-    home_team = match_info['ht']
-    away_team = match_info['at']
-    
-    match_events = events[events['id_odsp'] == match_id].copy()
-
-    # Relacja z meczu...
-    st.write(f"### Relacja z meczu: {selected_match}")
-    table_data = match_events[['time', 'event_team', 'event_type_name', 'text']].copy()
-    table_data['text'] = table_data['text'].apply(clean_text)
-    table_data = table_data.sort_values(by='time', ascending=True)
-
-    st.dataframe(table_data, hide_index=True, use_container_width=True, height=250, 
-                 column_config={"time": st.column_config.NumberColumn("Minuta", format="%d'"), "event_team": "Drużyna", "event_type_name": "Zdarzenie", "text": st.column_config.TextColumn("Opis sytuacji", width="large")})
+def render(matches_df):
+    st.title("⚽ Analiza zdarzeń meczowych")
     st.markdown("---")
 
-    # --- WIZUALIZACJA: PODGLĄD ZDARZENIA (STRZAŁY) ---
-    st.write("### 🔎 Podgląd Zdarzenia (Strzały)")
-    shots_df = match_events[match_events['is_shot'] == True].copy()
+    if matches_df.empty:
+        st.warning("Brak meczów do analizy. Wybierz inną ligę z panelu bocznego.")
+        return
+
+    # Słownik ikon - wykorzystywany TYLKO do wizualizacji światła bramki
+    outcome_icons = {
+        'Saved': 'data/img/save.svg',
+        'Saved to Post': 'data/img/save_to_post.svg',
+        'Saved Off Target': 'data/img/save_off_t.svg',
+        'Blocked': 'data/img/block.svg',
+        'Off T': 'data/img/miss.svg',
+        'Wayward': 'data/img/miss.svg'
+    }
+
+    matches_df = matches_df.copy()
+    matches_df['match_label'] = matches_df['match_date'].astype(str) + " | " + matches_df['home_team'] + " vs " + matches_df['away_team']
     
-    if not shots_df.empty:
-        col_info, col_viz = st.columns([1, 0.4])
-        
-        with col_info:
-            shot_labels = shots_df.apply(lambda x: f"{int(x['time'])}' - {x['event_team']}: {clean_text(str(x['text']))[:50]}...", axis=1)
-            selected_shot_label = st.selectbox("Wybierz strzał do wizualizacji:", shot_labels)
-            
-            shot_idx = shot_labels[shot_labels == selected_shot_label].index[0]
-            selected_shot = shots_df.loc[shot_idx]
-            
-            st.markdown("#### 📝 Pełny opis zdarzenia")
-            st.info(clean_text(str(selected_shot['text'])))
-            
-            # --- SEKCJA PREDYKCJI xG ---
-            if xg_model and xg_cols:
-                # 1. Tworzymy pusty DataFrame z zerami o strukturze z Jupytera
-                input_df = pd.DataFrame(0, index=[0], columns=xg_cols)
-                
-                # 2. Wypełniamy zmienną numeryczną
-                if 'fast_break' in xg_cols:
-                    input_df.at[0, 'fast_break'] = int(selected_shot.get('fast_break', 0))
-                
-                # 3. Wypełniamy zmienne kategoryczne (One-Hot Encoding w locie)
-                for cat in ['location', 'bodypart', 'assist_method', 'situation']:
-                    val = selected_shot.get(cat)
-                    if pd.notna(val):
-                        col_name = f"{cat}_{int(val)}" # Odwzorowanie pd.get_dummies (np. 'location_15')
-                        if col_name in xg_cols:
-                            input_df.at[0, col_name] = 1
-                
-                # 4. Przewidujemy prawdopodobieństwo (indeks 1 to gol)
-                xg_value = xg_model.predict_proba(input_df)[0][1]
-                
-                # Wyświetlamy jako ładny Metric box
-                col1, col2 = st.columns(2)
-                col1.metric(label="📊 Model xG", value=f"{xg_value:.2f}")
-                
-                is_goal_text = "✅ Gol" if selected_shot.get('is_goal') == 1 else "❌ Pudło/Obrona"
-                col2.metric(label="⚽ Rezultat", value=is_goal_text)
-                
-            else:
-                st.warning("Nie znaleziono modelu xG w folderze 'data/'. Uruchom najpierw notatnik Jupyter.")
-                st.write(f"**Zdobyto bramkę:** {'✅ Tak (Gol)' if selected_shot.get('is_goal') == 1 else '❌ Nie'}")
+    selected_match_label = st.selectbox("🔎 Wybierz mecz z listy:", matches_df['match_label'].unique())
 
-        with col_viz:
-            pitch_b64 = get_base64_image("data/img/pitch.svg")
-            goal_b64 = get_base64_image("data/img/goal.svg")
-            
-            icon_path = "data/img/miss.svg" 
-            if selected_shot.get('is_goal') == 1:
-                icon_path = "data/img/ball_g.svg"
-            else:
-                outcome = selected_shot.get('shot_outcome')
-                text_lower = str(selected_shot.get('text', '')).lower()
-                if outcome == 3 or 'saved' in text_lower or 'blocked' in text_lower:
-                    icon_path = "data/img/ball.svg"
-                    
-            icon_b64 = get_base64_image(icon_path)
+    match_row = matches_df[matches_df['match_label'] == selected_match_label].iloc[0]
+    match_id = match_row['match_id']
+    home_team = match_row['home_team']
+    away_team = match_row['away_team']
 
-            st.markdown("#### 📍 Lokalizacja na murawie")
-            fig_pitch = go.Figure()
-            fig_pitch.update_layout(xaxis=dict(range=[0, 100], visible=False), yaxis=dict(range=[0, 100], visible=False), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', margin=dict(l=0, r=0, t=0, b=10), height=650)
-            if pitch_b64: fig_pitch.add_layout_image(source=pitch_b64, x=0, y=100, xref="x", yref="y", sizex=100, sizey=100, sizing="stretch", layer="below")
-            
-            loc = selected_shot.get('location', 19)
-            if pd.isna(loc): loc = 19
-            px_x, px_y = PITCH_MAP.get(int(loc), (50, 50))
-            if icon_b64: fig_pitch.add_layout_image(source=icon_b64, x=px_x, y=px_y, xref="x", yref="y", sizex=8, sizey=8, xanchor="center", yanchor="middle")
-            st.plotly_chart(fig_pitch, use_container_width=True, config={'displayModeBar': False})
+    with st.spinner("Pobieranie logów przestrzennych ze StatsBomb API..."):
+        events_df = dl.get_match_events(match_id)
 
-            st.markdown("---")
-            st.markdown("#### 🥅 Miejsce strzału")
-            fig_goal = go.Figure()
-            fig_goal.update_layout(xaxis=dict(range=[0, 100], visible=False), yaxis=dict(range=[0, 100], visible=False), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', margin=dict(l=0, r=0, t=0, b=0), height=220)
-            if goal_b64: fig_goal.add_layout_image(source=goal_b64, x=0, y=100, xref="x", yref="y", sizex=100, sizey=100, sizing="stretch", layer="below")
-            
-            sp = selected_shot.get('shot_place', 5)
-            if pd.isna(sp): sp = 5
-            gx, gy = GOAL_MAP.get(int(sp), (50, 50))
-            if icon_b64: fig_goal.add_layout_image(source=icon_b64, x=gx, y=gy, xref="x", yref="y", sizex=8, sizey=8, xanchor="center", yanchor="middle")
-            st.plotly_chart(fig_goal, use_container_width=True, config={'displayModeBar': False})
-    else:
+    if events_df.empty or 'type' not in events_df.columns:
+        st.error("Nie udało się pobrać szczegółowych zdarzeń dla tego meczu.")
+        return
+
+    shots = events_df[events_df['type'] == 'Shot'].copy()
+
+    if shots.empty:
         st.info("Brak zarejestrowanych strzałów w tym meczu.")
+        return
 
-    # (Tutaj zostaje kod Match Momentum, pominąłem go dla zwięzłości, ale Ty go zostaw!)
+    # KALIBRACJA GŁÓWNEGO BOISKA (Czyste UI)
+    PITCH_LEFT_LINE = -15.0   
+    PITCH_RIGHT_LINE = 115.0  
+    PITCH_BOTTOM_LINE = 6.0   
+    PITCH_TOP_LINE = 96.0     
 
+    pitch_display_width = PITCH_RIGHT_LINE - PITCH_LEFT_LINE
+    pitch_display_height = PITCH_TOP_LINE - PITCH_BOTTOM_LINE
+
+    shots['scaled_x'] = PITCH_LEFT_LINE + ((shots['location_y'] / 80.0) * pitch_display_width)
+    shots['scaled_y'] = PITCH_BOTTOM_LINE + ((shots['location_x'] / 120.0) * pitch_display_height)
+
+    col_left, col_right = st.columns([4, 3])
+
+    with col_left:
+        st.markdown("### 📋 Rejestr strzałów")
+        
+        shots_display = shots[['minute', 'team', 'player', 'shot_outcome', 'shot_statsbomb_xg']].copy()
+        shots_display = shots_display.sort_values(by='minute')
+        shots_display.columns = ['Minuta', 'Drużyna', 'Zawodnik', 'Wynik', 'xG (StatsBomb)']
+        
+        team_filter = st.radio("Filtruj statystyki:", ["Wszyscy", home_team, away_team], horizontal=True)
+        if team_filter != "Wszyscy":
+            shots_display = shots_display[shots_display['Drużyna'] == team_filter]
+
+        st.dataframe(shots_display, use_container_width=True, hide_index=True, height=400)
+
+    # =========================================================================
+    # 🗺️ GŁÓWNA MAPA BOISKA (Czysta, techniczna wizualizacja)
+    # =========================================================================
+    with col_right:
+        st.markdown("### 🗺️ Mapa strzałów")
+        
+        fig = go.Figure()
+
+        encoded_pitch = get_base64_image("data/img/pitch.svg")
+        if encoded_pitch:
+            fig.add_layout_image(dict(
+                source=encoded_pitch, xref="x", yref="y",
+                x=0, y=100, sizex=100, sizey=100,
+                sizing="stretch", opacity=0.9, layer="below"
+            ))
+
+        map_shots = shots.copy()
+        if team_filter != "Wszyscy":
+            map_shots = map_shots[map_shots['team'] == team_filter]
+
+        goals = map_shots[map_shots['shot_outcome'] == 'Goal']
+        no_goals = map_shots[map_shots['shot_outcome'] != 'Goal']
+
+        if not no_goals.empty:
+            fig.add_trace(go.Scatter(
+                x=no_goals['scaled_x'], y=no_goals['scaled_y'],
+                mode='markers', name='Brak gola',
+                marker=dict(size=10, color='#e74c3c', symbol='x', opacity=0.8),
+                text=no_goals['player'] + "<br>Wynik: " + no_goals['shot_outcome'] + "<br>xG: " + no_goals['shot_statsbomb_xg'].round(2).astype(str),
+                hoverinfo='text'
+            ))
+
+        if not goals.empty:
+            fig.add_trace(go.Scatter(
+                x=goals['scaled_x'], y=goals['scaled_y'],
+                mode='markers', name='Gol',
+                marker=dict(size=14, color='#2ecc71', symbol='circle', line=dict(width=2, color='white')),
+                text=goals['player'] + "<br>Wynik: Goal<br>xG: " + goals['shot_statsbomb_xg'].round(2).astype(str),
+                hoverinfo='text'
+            ))
+
+        fig.update_layout(
+            xaxis=dict(range=[0, 100], visible=False), yaxis=dict(range=[0, 100], visible=False),
+            margin=dict(l=10, r=10, t=10, b=10), 
+            height=750, 
+            plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+    # =========================================================================
+    # 🥅 WIZUALIZACJA ŚWIATŁA BRAMKI (Z TWOJĄ GRAFIKĄ WEKTOROWĄ)
+    # =========================================================================
     st.markdown("---")
+    st.markdown("### 🥅 Precyzyjna Lokalizacja Strzału (Światło Bramki)")
 
-    # --- MATCH MOMENTUM ---
-    with st.expander("📊 Wskaźnik zagrożenia (Match Momentum) - Kliknij, aby rozwinąć", expanded=False):
-        
-        def calculate_threat(row):
-            points = 0
-            if row['is_goal'] == 1:
-                points = 5
-            elif row['event_type_name'] == 'Attempt (Strzał)':
-                points = 3
-            elif row['event_type_name'] == 'Corner (Rożny)':
-                points = 1
+    shots['end_y'] = shots['shot_end_location'].apply(lambda loc: loc[1] if isinstance(loc, list) and len(loc) > 1 else np.nan)
+    shots['end_z'] = shots['shot_end_location'].apply(lambda loc: loc[2] if isinstance(loc, list) and len(loc) > 2 else 0.0)
+
+    valid_goal_shots = shots.dropna(subset=['end_y']).copy()
+
+    if not valid_goal_shots.empty:
+        valid_goal_shots = valid_goal_shots.sort_values(by='minute')
+        if team_filter != "Wszyscy":
+            valid_goal_shots = valid_goal_shots[valid_goal_shots['team'] == team_filter]
+
+        if valid_goal_shots.empty:
+            st.info(f"Wybrana drużyna ({team_filter}) nie oddała strzałów z trajektorią końcową.")
+            return
+
+        valid_goal_shots['shot_label'] = valid_goal_shots['minute'].astype(str) + "' | " + valid_goal_shots['player'] + " (" + valid_goal_shots['shot_outcome'] + ")"
+
+        col_goal_list, col_goal_canvas = st.columns([5, 3])
+
+        with col_goal_list:
+            selected_goal_shot = st.selectbox("🎯 Wybierz strzał z listy:", valid_goal_shots['shot_label'])
+            shot_detail = valid_goal_shots[valid_goal_shots['shot_label'] == selected_goal_shot].iloc[0]
             
-            if row['event_team'] == home_team:
-                return points
-            elif row['event_team'] == away_team:
-                return -points
+            # --- Wyciąganie i tłumaczenie dodatkowych parametrów z danych StatsBomb ---
+            body_part = shot_detail.get('shot_body_part', 'Brak danych')
+            shot_type = shot_detail.get('shot_type', 'Brak danych')
+            play_pattern = shot_detail.get('play_pattern', 'Brak danych')
+            
+            body_part_pl = {
+                'Right Foot': 'Prawa noga', 'Left Foot': 'Lewa noga', 
+                'Head': 'Głowa', 'Other': 'Inna część ciała'
+            }.get(body_part, body_part)
+            
+            # Określanie kontekstu akcji (karny, wolny czy akcja)
+            if shot_type == 'Penalty':
+                shot_context = "Rzut karny"
+            elif shot_type == 'Free Kick':
+                shot_context = "Rzut wolny (bezpośredni)"
             else:
-                return 0
+                shot_context = {
+                    'Regular Play': 'Z gry', 
+                    'From Corner': 'Rozegranie rzutu rożnego',
+                    'From Free Kick': 'Rozegranie rzutu wolnego', 
+                    'From Throw In': 'Rozegranie autu',
+                    'From Counter': 'Kontratak', 
+                    'From Goal Kick': 'Po wznowieniu od bramki',
+                    'From Keeper': 'Od bramkarza',
+                    'Other': 'Inne'
+                }.get(play_pattern, play_pattern)
+            # -------------------------------------------------------------------------
+            
+            st.markdown(f"**Szczegóły wykonania:**")
+            st.markdown(f"- **Zawodnik:** {shot_detail['player']} ({shot_detail['team']})")
+            st.markdown(f"- **Kontekst:** `{shot_context}` | **Wykonanie:** `{body_part_pl}`")
+            st.markdown(f"- **Wynik akcji:** `{shot_detail['shot_outcome']}`")
+            st.markdown(f"- **Trudność (StatsBomb xG):** `{shot_detail['shot_statsbomb_xg']:.2f}`")
 
-        match_events['threat'] = match_events.apply(calculate_threat, axis=1)
+        with col_goal_canvas:
+            raw_y = shot_detail['end_y']
+            raw_z = shot_detail['end_z']
+            outcome = shot_detail['shot_outcome']
 
-        bins = [-1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 120]
-        base_labels = [
-            '1-5', '6-10', '11-15', '16-20', '21-25', '26-30', '31-35', '36-40', '41-45+',
-            '46-50', '51-55', '56-60', '61-65', '66-70', '71-75', '76-80', '81-85', '86-90+'
-        ]
-        
-        match_events['time_bin'] = pd.cut(match_events['time'], bins=bins, labels=base_labels, right=True)
+            # KALIBRACJA GEOMETRYCZNA(Canvas: 600x350px)
+            G_LEFT = 14.17   
+            G_RIGHT = 85.83  
+            G_BOTTOM = 14.29  
+            G_TOP = 62.86   
+            
+            g_width = G_RIGHT - G_LEFT
+            g_height = G_TOP - G_BOTTOM
 
-        momentum_df = match_events.groupby('time_bin', observed=False)['threat'].sum().reset_index()
-        momentum_df['threat'] = momentum_df['threat'].fillna(0)
-        momentum_df['time_bin'] = momentum_df['time_bin'].astype(str)
+            goal_x = G_LEFT + ((raw_y - 36.0) / 8.0) * g_width
+            goal_y = G_BOTTOM + ((raw_z - 0.0) / 2.67) * g_height
 
-        dummy_row = pd.DataFrame([{'time_bin': 'PRZERWA', 'threat': 0}])
-        momentum_df = pd.concat([momentum_df.iloc[:9], dummy_row, momentum_df.iloc[9:]], ignore_index=True)
+            # DYNAMICZNA KLATKA BEZPIECZEŃSTWA (Smart Clamping)
+            clamped_x = max(2.5, min(goal_x, 97.5))
+            clamped_y = max(2.0, min(goal_y, 97.5)) 
 
-        momentum_df['Dominacja'] = momentum_df['threat'].apply(
-            lambda x: home_team if x > 0 else (away_team if x < 0 else 'Brak / Równowaga')
-        )
+            fig_goal = go.Figure()
 
-        all_categories = base_labels[:9] + ['PRZERWA'] + base_labels[9:]
+            encoded_goal = get_base64_image("data/img/goal.svg")
+            if encoded_goal:
+                fig_goal.add_layout_image(dict(
+                    source=encoded_goal, xref="x", yref="y",
+                    x=0, y=100, sizex=100, sizey=100, sizing="stretch", opacity=1.0, layer="below"
+                ))
 
-        fig_momentum = px.bar(
-            momentum_df, 
-            x='time_bin', 
-            y='threat', 
-            color='Dominacja',
-            color_discrete_map={
-                home_team: '#1f77b4',
-                away_team: '#d62728',
-                'Brak / Równowaga': '#D3D3D3'
-            }
-        )
+            specific_icon_path = outcome_icons.get(outcome)
+            
+            if specific_icon_path:
+                encoded_specific_icon = get_base64_image(specific_icon_path)
+                if encoded_specific_icon:
+                    fig_goal.add_layout_image(dict(
+                        source=encoded_specific_icon, xref="x", yref="y",
+                        x=clamped_x, y=clamped_y, sizex=18, sizey=18, xanchor="center", yanchor="middle",
+                        layer="above", sizing="contain"
+                    ))
+                
+                fig_goal.add_trace(go.Scatter(
+                    x=[clamped_x], y=[clamped_y], mode='markers', marker=dict(size=30, opacity=0),
+                    hoverinfo='text', hovertext=f"Wysokość: {raw_z:.2f} jarda<br>Pozycja na linii: {raw_y:.2f}", showlegend=False
+                ))
+            else:
+                color_marker = '#2ecc71' if outcome == 'Goal' else '#f39c12'
+                fig_goal.add_trace(go.Scatter(
+                    x=[clamped_x], y=[clamped_y], mode='markers',
+                    marker=dict(size=14, color=color_marker, line=dict(color='white', width=2.0), symbol='circle'),
+                    hoverinfo='text', hovertext=f"Wysokość: {raw_z:.2f} jarda<br>Pozycja na linii: {raw_y:.2f}", showlegend=False
+                ))
 
-        fig_momentum.update_layout(
-            barmode='relative',
-            yaxis=dict(title="", zeroline=True, zerolinewidth=2, zerolinecolor='black', showticklabels=False),
-            xaxis=dict(
-                title="", showticklabels=False, type='category', 
-                categoryorder='array', categoryarray=all_categories   
-            ),
-            showlegend=True,
-            legend_title="Inicjatywa",
-            height=350, margin=dict(t=30, b=10)
-        )
-
-        fig_momentum.add_vline(x='PRZERWA', line_width=2, line_dash="dash", line_color="gray")
-        fig_momentum.add_annotation(
-            x='PRZERWA', y=1.05, yref="paper", text="Przerwa", 
-            showarrow=False, font=dict(color="gray", size=12)
-        )
-
-        spacer_left, col_chart, spacer_right = st.columns([1.5, 7, 1.5])
-        
-        with col_chart:
-            st.plotly_chart(fig_momentum, use_container_width=True)
-            st.caption(f"**Jak czytać wykres?** Słupki w górę = {home_team}, słupki w dół = {away_team}. Wykres prezentuje skumulowane akcje ofensywne w 5-minutowych przedziałach.")
+            fig_goal.update_layout(
+                xaxis=dict(range=[0, 100], visible=False), yaxis=dict(range=[0, 100], visible=False),
+                margin=dict(l=0, r=0, t=0, b=0), height=250, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)'
+            )
+            st.plotly_chart(fig_goal, use_container_width=True)
+    else:
+        st.info("Brak strzałów z zarejestrowaną pozycją końcową dla tego meczu.")

@@ -1,42 +1,72 @@
 import pandas as pd
 import streamlit as st
+from statsbombpy import sb
 
-@st.cache_data
-def load_and_clean_data():
-    # 1. Wczytanie surowych danych
-    events = pd.read_csv("data/events.csv", encoding="utf-8")
-    ginf = pd.read_csv("data/ginf.csv", encoding="utf-8")
+# 1. Pobieranie listy dostępnych rozgrywek
+@st.cache_data(ttl=3600) # Cache na godzinę
+def get_competitions():
+    """
+    Pobiera wszystkie dostępne darmowe rozgrywki ze StatsBomb.
+    """
+    try:
+        comps = sb.competitions()
+        return comps
+    except Exception as e:
+        st.error(f"Błąd podczas pobierania lig: {e}")
+        return pd.DataFrame()
 
-    # 2. Słowniki (na podstawie dictionary.txt)
-    event_type_map = {
-        0: 'Announcement', 1: 'Attempt (Strzał)', 2: 'Corner (Rożny)', 3: 'Foul (Faul)', 
-        4: 'Yellow card', 5: 'Second yellow card', 6: 'Red card', 
-        7: 'Substitution (Zmiana)', 8: 'Free kick won', 9: 'Offside (Spalony)', 
-        10: 'Hand ball', 11: 'Penalty conceded'
-    }
-    
-    shot_outcome_map = {
-        1: 'On target (Celny)', 2: 'Off target (Niecelny)', 3: 'Blocked (Zablokowany)', 4: 'Hit the bar (Słupek/Poprzeczka)'
-    }
+# 2. Pobieranie meczów dla konkretnej ligi i sezonu
+@st.cache_data(ttl=3600)
+def get_matches(competition_id, season_id):
+    """
+    Pobiera mecze dla podanego competition_id oraz season_id.
+    """
+    try:
+        matches = sb.matches(competition_id=competition_id, season_id=season_id)
+        return matches
+    except Exception as e:
+        st.error(f"Błąd podczas pobierania meczów: {e}")
+        return pd.DataFrame()
 
-    # --- MAPOWANIE SEZONÓW ---
-    def format_season(year):
-        try:
-            y = int(year)
-            return f"{y-1}/{str(y)[2:]}"
-        except:
-            return str(year)
+# 3. Pobieranie zdarzeń (serce nowej aplikacji)
+@st.cache_data(ttl=3600)
+def get_match_events(match_id):
+    """
+    Pobiera wszystkie zdarzenia dla danego meczu i spłaszcza współrzędne przestrzenne.
+    """
+    try:
+        # Pobieramy surowe zdarzenia w formie DataFrame
+        events = sb.events(match_id=match_id)
+        
+        # --- SPŁASZCZANIE WSPÓŁRZĘDNYCH (Data Engineering) ---
+        # Domyślnie StatsBomb zwraca lokalizację jako listę [X, Y], np. [120.0, 40.0]. 
+        # Rozbijamy to na osobne kolumny, by ułatwić pracę modelowi ML i wykresom.
+        
+        if 'location' in events.columns:
+            # Dropna usuwa wiersze bez lokalizacji przed rozbiciem
+            locs = events['location'].dropna().apply(pd.Series)
+            locs.columns = ['location_x', 'location_y']
+            events = events.join(locs)
 
-    # Ta linijka jest kluczowa:
-    ginf['season_label'] = ginf['season'].apply(format_season)
+        # Spłaszczanie punktu końcowego strzału (Shot End Location)
+        # Strzały w StatsBomb mają 3 współrzędne [X, Y, Z], gdzie Z to wysokość!
+        if 'shot_end_location' in events.columns:
+            shot_locs = events['shot_end_location'].dropna().apply(pd.Series)
+            # Zabezpieczenie: czasem brakuje osi Z, więc sprawdzamy liczbę kolumn
+            if len(shot_locs.columns) == 3:
+                shot_locs.columns = ['shot_end_x', 'shot_end_y', 'shot_end_z']
+            elif len(shot_locs.columns) == 2:
+                shot_locs.columns = ['shot_end_x', 'shot_end_y']
+            events = events.join(shot_locs)
 
-    # 3. Mapowanie wartości na nowe, czytelne kolumny
-    # Używamy nowych nazw kolumn (z dopiskiem _name), żeby nie nadpisywać oryginałów
-    events['event_type_name'] = events['event_type'].map(event_type_map)
-    events['shot_outcome_name'] = events['shot_outcome'].map(shot_outcome_map)
-    
-    # Dodanie pomocniczej kolumny - czy zdarzenie jest strzałem?
-    events['is_shot'] = events['event_type'] == 1
-
-    return events, ginf
-
+        # Spłaszczanie podań (Pass End Location) - przyda się później do modelu xA i map podań
+        if 'pass_end_location' in events.columns:
+            pass_locs = events['pass_end_location'].dropna().apply(pd.Series)
+            pass_locs.columns = ['pass_end_x', 'pass_end_y']
+            events = events.join(pass_locs)
+            
+        return events
+        
+    except Exception as e:
+        st.error(f"Błąd podczas pobierania zdarzeń meczu: {e}")
+        return pd.DataFrame()
